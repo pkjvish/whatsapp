@@ -1,0 +1,27 @@
+PANKAJ SHARMA
+Email: pankaj@example.com | Phone: +91-9702309081 | LinkedIn: linkedin.com/in/pankaj
+
+SUMMARY
+-------
+Experienced software developer with 5+ years building scalable web applications.
+Proficient in Python, JavaScript, and cloud infrastructure.
+
+EXPERIENCE
+----------
+Senior Developer | TechCorp India | 2021 - Present
+- Built REST APIs serving 1M+ requests/day
+- Led a team of 4 developers across 3 product launches
+
+Junior Developer | StartupXYZ | 2019 - 2021
+- Developed frontend dashboards using React
+- Automated deployment pipelines reducing release time by 60%
+
+EDUCATION
+---------
+B.Tech in Computer Science | Mumbai University | 2019
+
+SKILLS
+------
+Languages : Python, JavaScript, SQL
+Frameworks: Django, FastAPI, React
+DevOps    : Docker, GitHub Actions, AWS

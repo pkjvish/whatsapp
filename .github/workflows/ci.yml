@@ -1,0 +1,117 @@
+name: WhatsApp Sender — CI (Selenium)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint-and-audit:
+    name: Lint & Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies + lint tools
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt flake8 pip-audit
+
+      - name: Lint
+        run: flake8 whatsapp_sender.py --max-line-length=100 --ignore=E501,W503
+
+      - name: Dependency audit
+        run: pip-audit -r requirements.txt || true
+
+  test-parser:
+    name: Test Contact Parser
+    runs-on: ubuntu-latest
+    needs: lint-and-audit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Smoke-test parse_contacts
+        run: |
+          python - <<'PYEOF'
+          import sys
+          sys.path.insert(0, ".")
+          from pathlib import Path
+          from whatsapp_sender import parse_contacts
+          contacts = parse_contacts(Path("numberMessage.txt"))
+          assert contacts, "No contacts parsed!"
+          for c in contacts:
+              assert c["number"].startswith("+"), f"Bad number: {c['number']}"
+              assert c["message"], "Empty message"
+          print(f"✅  Parsed {len(contacts)} contact(s) OK.")
+          PYEOF
+
+  build-env:
+    name: Build Environment & Verify Selenium
+    runs-on: ubuntu-latest
+    needs: test-parser
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] https://dl.google.com/linux/chrome/deb/ stable main" \
+            > /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update -q
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify imports + ChromeDriver install
+        run: |
+          python - <<'PYEOF'
+          from selenium import webdriver
+          from selenium.webdriver.chrome.options import Options
+          from selenium.webdriver.chrome.service import Service
+          from webdriver_manager.chrome import ChromeDriverManager
+          from rich.console import Console
+
+          path = ChromeDriverManager().install()
+          print(f"✅ ChromeDriver: {path}")
+
+          opts = Options()
+          opts.add_argument("--headless=new")
+          opts.add_argument("--no-sandbox")
+          opts.add_argument("--disable-dev-shm-usage")
+          driver = webdriver.Chrome(service=Service(path), options=opts)
+          driver.get("https://www.google.com")
+          print(f"✅ Selenium OK — title: {driver.title}")
+          driver.quit()
+          PYEOF
+
+      - name: Upload requirements lock
+        run: pip freeze > requirements.lock
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: requirements-lock
+          path: requirements.lock
+          retention-days: 30

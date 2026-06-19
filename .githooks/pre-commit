@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# .githooks/pre-commit
+# Validates numberMessage.txt before every commit.
+# Install: git config core.hooksPath .githooks
+
+set -euo pipefail
+
+FILE="numberMessage.txt"
+
+if [[ ! -f "$FILE" ]]; then
+    echo "⚠   $FILE not found — skipping validation."
+    exit 0
+fi
+
+echo "→  Validating $FILE …"
+
+ERRORS=0
+LINE_NO=0
+while IFS= read -r line || [[ -n "$line" ]]; do
+    LINE_NO=$((LINE_NO + 1))
+    [[ -z "${line// /}" ]] && continue      # skip blank lines
+
+    NUMBER=$(echo "$line" | cut -d',' -f1 | tr -d ' ')
+    if [[ ! "$NUMBER" =~ ^\+[0-9]{10,15}$ ]]; then
+        echo "  ✗ Line $LINE_NO — invalid number: '$NUMBER'"
+        ERRORS=$((ERRORS + 1))
+    fi
+done < "$FILE"
+
+if [[ $ERRORS -gt 0 ]]; then
+    echo "❌  $ERRORS error(s) in $FILE. Commit aborted."
+    exit 1
+fi
+
+echo "✔  $FILE is valid ($LINE_NO lines checked)."
