@@ -80,30 +80,33 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y google-chrome-stable
 
+      - name: Remove old broken WebDriver cache (if any)
+        run: |
+          rm -rf ~/.wdm
+          rm -rf ~/.cache/selenium
+
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
+          pip install --upgrade selenium  # ensure latest for auto-driver management
           pip install -r requirements.txt
 
-      - name: Verify imports + ChromeDriver install
+      - name: Verify Selenium + ChromeDriver (no webdriver_manager)
         run: |
           python - <<'PYEOF'
           from selenium import webdriver
           from selenium.webdriver.chrome.options import Options
-          from selenium.webdriver.chrome.service import Service
-          from webdriver_manager.chrome import ChromeDriverManager
           from rich.console import Console
 
-          path = ChromeDriverManager().install()
-          print(f"✅ ChromeDriver: {path}")
-
+          console = Console()
           opts = Options()
           opts.add_argument("--headless=new")
           opts.add_argument("--no-sandbox")
           opts.add_argument("--disable-dev-shm-usage")
-          driver = webdriver.Chrome(service=Service(path), options=opts)
+          # Selenium 4.6+ automatically downloads and caches the correct driver
+          driver = webdriver.Chrome(options=opts)
           driver.get("https://www.google.com")
-          print(f"✅ Selenium OK — title: {driver.title}")
+          console.print(f"[green]✅ Selenium OK — title: {driver.title}[/green]")
           driver.quit()
           PYEOF
 
