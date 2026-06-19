@@ -143,26 +143,34 @@ def wait_for_login(driver: webdriver.Chrome) -> None:
     console.print("\n[yellow]⏳  Waiting for WhatsApp Web to load …[/yellow]")
     console.print("[dim]   (Scan the QR code if this is your first run)[/dim]\n")
 
-    # Allow QR code to render
-    time.sleep(3)
+    # Wait for the page to settle
+    time.sleep(5)
 
-    # Check if the login panel (search box) is absent → QR is visible
-    if not driver.find_elements(By.XPATH, '//div[@contenteditable="true"][@data-tab="3"]'):
+    # Check if already logged in (search box visible)
+    if driver.find_elements(By.XPATH, '//div[@contenteditable="true"][@data-tab="3"]'):
+        console.print("[green]✔  Already logged in.[/green]\n")
+        return
+
+    # Try to find the QR code canvas and wait for it to be visible
+    try:
+        qr_canvas = WebDriverWait(driver, 15).until(
+            EC.visibility_of_element_located((By.XPATH, '//canvas[contains(@aria-label, "QR code")]'))
+        )
+        # Give it a moment to render fully
+        time.sleep(2)
         qr_file = "qr_code.png"
         driver.save_screenshot(qr_file)
         console.print(f"[yellow]📸 QR code screenshot saved as {qr_file}[/yellow]")
         console.print("[dim]   Download this artifact, scan it with your WhatsApp app, then re-run the job.[/dim]\n")
-        # Exit with a specific code to indicate QR needed
         sys.exit(2)
-
-    # Wait for login (should be quick if session exists)
-    wait = WebDriverWait(driver, 60)
-    wait.until(
-        EC.presence_of_element_located(
-            (By.XPATH, '//div[@contenteditable="true"][@data-tab="3"]')
-        )
-    )
-    console.print("[green]✔  Logged in to WhatsApp Web.[/green]\n")
+    except TimeoutException:
+        # Fallback: if we can't find the canvas, take a full-page screenshot anyway
+        console.print("[dim]Could not find QR canvas, taking full-page screenshot…[/dim]")
+        qr_file = "qr_code.png"
+        driver.save_screenshot(qr_file)
+        console.print(f"[yellow]📸 QR code screenshot saved as {qr_file} (fallback)[/yellow]")
+        console.print("[dim]   Download this artifact, scan it with your WhatsApp app, then re-run the job.[/dim]\n")
+        sys.exit(2)
 
 
 def open_chat(driver: webdriver.Chrome, number: str) -> bool:
