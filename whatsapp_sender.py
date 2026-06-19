@@ -19,6 +19,7 @@ Usage:
 import argparse
 import csv
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -31,7 +32,7 @@ from rich import print as rprint
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
@@ -132,7 +133,14 @@ def build_driver(headless: bool = False) -> webdriver.Chrome:
         opts.add_argument("--headless=new")
         logger.warning("Headless mode: file attachments may not work on some systems.")
 
-    service = Service(ChromeDriverManager().install())
+    # ---- Fix for ChromeDriverManager path ----
+    driver_path = ChromeDriverManager().install()
+    # If it's a directory (e.g., due to nested extraction), append the binary name
+    if os.path.isdir(driver_path):
+        driver_path = os.path.join(driver_path, "chromedriver")
+    service = ChromeService(executable_path=driver_path)
+    # ------------------------------------------
+
     driver = webdriver.Chrome(service=service, options=opts)
     driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
     return driver
