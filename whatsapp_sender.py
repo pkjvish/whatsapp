@@ -19,7 +19,6 @@ Usage:
 import argparse
 import csv
 import logging
-import os
 import sys
 import time
 from pathlib import Path
@@ -32,7 +31,6 @@ from rich import print as rprint
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
@@ -42,7 +40,6 @@ from selenium.common.exceptions import (
     NoSuchElementException,
     WebDriverException,
 )
-from webdriver_manager.chrome import ChromeDriverManager
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent
@@ -129,19 +126,11 @@ def build_driver(headless: bool = False) -> webdriver.Chrome:
     opts.add_experimental_option("excludeSwitches", ["enable-logging"])
 
     if headless:
-        # headless + attachment upload requires a real display; warn the user
         opts.add_argument("--headless=new")
         logger.warning("Headless mode: file attachments may not work on some systems.")
 
-    # ---- Fix for ChromeDriverManager path ----
-    driver_path = ChromeDriverManager().install()
-    # If it's a directory (e.g., due to nested extraction), append the binary name
-    if os.path.isdir(driver_path):
-        driver_path = os.path.join(driver_path, "chromedriver")
-    service = ChromeService(executable_path=driver_path)
-    # ------------------------------------------
-
-    driver = webdriver.Chrome(service=service, options=opts)
+    # Selenium 4.6+ automatically downloads and caches the correct driver
+    driver = webdriver.Chrome(options=opts)
     driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
     return driver
 
@@ -159,8 +148,7 @@ def wait_for_login(driver: webdriver.Chrome) -> None:
     console.print("\n[yellow]⏳  Waiting for WhatsApp Web to load …[/yellow]")
     console.print("[dim]   (Scan the QR code if this is your first run)[/dim]\n")
 
-    # The side panel / search box is the reliable sign that we're logged in
-    wait = WebDriverWait(driver, 120)   # 2-minute window to scan QR
+    wait = WebDriverWait(driver, 120)
     wait.until(
         EC.presence_of_element_located(
             (By.XPATH, '//div[@contenteditable="true"][@data-tab="3"]')
@@ -179,13 +167,12 @@ def open_chat(driver: webdriver.Chrome, number: str) -> bool:
     driver.get(url)
 
     try:
-        # Wait for the message input box (confirms chat is open)
         WebDriverWait(driver, CHAT_OPEN_TIMEOUT).until(
             EC.presence_of_element_located(
                 (By.XPATH, '//div[@contenteditable="true"][@data-tab="10"]')
             )
         )
-        time.sleep(1.5)   # brief settle time
+        time.sleep(1.5)
         return True
     except TimeoutException:
         logger.error("Timed out opening chat for %s", number)
@@ -197,7 +184,6 @@ def type_and_send_message(driver: webdriver.Chrome, message: str) -> None:
     input_box = driver.find_element(
         By.XPATH, '//div[@contenteditable="true"][@data-tab="10"]'
     )
-    # Send line-by-line to preserve newlines (Shift+Enter for line break)
     for i, line in enumerate(message.split("\n")):
         if i > 0:
             input_box.send_keys(Keys.SHIFT + Keys.ENTER)
@@ -205,7 +191,7 @@ def type_and_send_message(driver: webdriver.Chrome, message: str) -> None:
 
     time.sleep(0.5)
     input_box.send_keys(Keys.ENTER)
-    time.sleep(MSG_SEND_TIMEOUT)   # allow time for the message to be delivered
+    time.sleep(MSG_SEND_TIMEOUT)
 
 
 def attach_and_send_file(
@@ -217,25 +203,18 @@ def attach_and_send_file(
     """
     abs_path = str(attachment.resolve())
 
-    # 1. Click the attach (paperclip) button
     clip_btn = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable(
-            (By.XPATH, '//div[@title="Attach"]')
-        )
+        EC.element_to_be_clickable((By.XPATH, '//div[@title="Attach"]'))
     )
     clip_btn.click()
     time.sleep(1)
 
-    # 2. Click "Document" option in the attach menu
     doc_btn = WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located(
-            (By.XPATH, '//input[@accept="*"]')
-        )
+        EC.presence_of_element_located((By.XPATH, '//input[@accept="*"]'))
     )
-    doc_btn.send_keys(abs_path)   # inject file path directly (no dialog needed)
-    time.sleep(3)   # wait for upload preview to appear
+    doc_btn.send_keys(abs_path)
+    time.sleep(3)
 
-    # 3. Add caption in the preview caption box
     try:
         caption_box = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located(
@@ -247,11 +226,8 @@ def attach_and_send_file(
     except TimeoutException:
         logger.warning("Caption box not found — sending without caption.")
 
-    # 4. Click Send button in the preview modal
     send_btn = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable(
-            (By.XPATH, '//div[@aria-label="Send"]')
-        )
+        EC.element_to_be_clickable((By.XPATH, '//div[@aria-label="Send"]'))
     )
     send_btn.click()
     time.sleep(MSG_SEND_TIMEOUT)
@@ -356,7 +332,6 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # ── Validate inputs ────────────────────────────────────────────────────────
     if not args.file.exists():
         console.print(f"[red]✗ Contacts file not found: {args.file}[/red]")
         sys.exit(1)
@@ -376,14 +351,12 @@ def main() -> None:
             )
             attachment = None
 
-    # ── Banner ─────────────────────────────────────────────────────────────────
     console.print("\n[bold cyan]━━━  WhatsApp Bulk Sender (Selenium)  ━━━[/bold cyan]")
     console.print(f"  Contacts   : {len(contacts)}")
     console.print(f"  Attachment : {attachment or 'None'}")
     console.print(f"  Delay      : {args.delay} s between messages")
     console.print(f"  Headless   : {args.headless}\n")
 
-    # ── Launch browser ─────────────────────────────────────────────────────────
     driver = build_driver(headless=args.headless)
 
     try:
@@ -400,7 +373,6 @@ def main() -> None:
             )
             results.append({**contact, "success": success})
 
-            # Pause between contacts (skip after the last one)
             if i < len(contacts) - 1:
                 logger.info("Waiting %d s before next contact …", args.delay)
                 time.sleep(args.delay)
