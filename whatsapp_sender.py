@@ -6,14 +6,6 @@ Sends WhatsApp messages (+ optional file attachment) to a list of contacts
 read from numberMessage.txt, using Selenium to drive WhatsApp Web directly.
 
 Session is persisted in .chrome_profile/ so you only scan the QR code ONCE.
-
-Usage:
-    python whatsapp_sender.py                         # default file + attachment
-    python whatsapp_sender.py --file custom.txt       # custom contacts file
-    python whatsapp_sender.py --attachment doc.pdf    # custom attachment
-    python whatsapp_sender.py --no-attachment         # text only
-    python whatsapp_sender.py --delay 25              # 25 s between messages
-    python whatsapp_sender.py --headless              # run Chrome headlessly
 """
 
 import argparse
@@ -53,10 +45,10 @@ PROFILE_DIR.mkdir(exist_ok=True)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
 WHATSAPP_WEB_URL = "https://web.whatsapp.com"
-PAGE_LOAD_TIMEOUT = 60      # seconds to wait for WA Web to load
-CHAT_OPEN_TIMEOUT = 20      # seconds to wait for a chat to be ready
-MSG_SEND_TIMEOUT = 15       # seconds to wait after hitting Enter
-DELAY_BETWEEN_MSGS = 20     # default gap between contacts
+PAGE_LOAD_TIMEOUT = 60
+CHAT_OPEN_TIMEOUT = 20
+MSG_SEND_TIMEOUT = 15
+DELAY_BETWEEN_MSGS = 20
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -76,11 +68,6 @@ console = Console()
 # ══════════════════════════════════════════════════════════════════════════════
 
 def parse_contacts(filepath: Path) -> List[Dict]:
-    """
-    Parse numberMessage.txt.
-    Format:  +919702309081,"hello pankaj"
-    Returns: [{"number": str, "message": str, "line": int}, ...]
-    """
     contacts = []
     with open(filepath, newline="", encoding="utf-8") as fh:
         reader = csv.reader(fh)
@@ -90,32 +77,23 @@ def parse_contacts(filepath: Path) -> List[Dict]:
             if len(row) < 2:
                 logger.warning("Line %d skipped (missing message): %s", line_no, row)
                 continue
-
             number = row[0].strip()
             message = row[1].strip().strip('"')
-
             if not number.startswith("+"):
                 logger.warning(
                     "Line %d: '%s' has no country code (needs '+XX'). Skipping.",
                     line_no, number,
                 )
                 continue
-
             contacts.append({"number": number, "message": message, "line": line_no})
-
     return contacts
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Chrome / Selenium setup
+# Chrome / Selenium setup – using Selenium's built-in driver manager
 # ══════════════════════════════════════════════════════════════════════════════
 
 def build_driver(headless: bool = False) -> webdriver.Chrome:
-    """
-    Create and return a Chrome WebDriver.
-    The user-data-dir persists the WhatsApp Web session so the QR code
-    is only scanned on the very first run.
-    """
     opts = Options()
     opts.add_argument(f"--user-data-dir={PROFILE_DIR.resolve()}")
     opts.add_argument("--profile-directory=Default")
@@ -136,18 +114,12 @@ def build_driver(headless: bool = False) -> webdriver.Chrome:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# WhatsApp Web helpers
+# WhatsApp Web helpers (unchanged)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def wait_for_login(driver: webdriver.Chrome) -> None:
-    """
-    Block until the user is fully logged in to WhatsApp Web.
-    On first run this means scanning the QR code; on subsequent runs
-    the session cookie re-authenticates automatically.
-    """
     console.print("\n[yellow]⏳  Waiting for WhatsApp Web to load …[/yellow]")
     console.print("[dim]   (Scan the QR code if this is your first run)[/dim]\n")
-
     wait = WebDriverWait(driver, 120)
     wait.until(
         EC.presence_of_element_located(
@@ -158,14 +130,9 @@ def wait_for_login(driver: webdriver.Chrome) -> None:
 
 
 def open_chat(driver: webdriver.Chrome, number: str) -> bool:
-    """
-    Navigate directly to the chat for `number` using the wa.me deep link.
-    Returns True if the message-input box is found, False otherwise.
-    """
     url = f"https://web.whatsapp.com/send?phone={number}&app_absent=0"
     logger.info("Opening chat for %s → %s", number, url)
     driver.get(url)
-
     try:
         WebDriverWait(driver, CHAT_OPEN_TIMEOUT).until(
             EC.presence_of_element_located(
@@ -180,7 +147,6 @@ def open_chat(driver: webdriver.Chrome, number: str) -> bool:
 
 
 def type_and_send_message(driver: webdriver.Chrome, message: str) -> None:
-    """Type message into the input box and press Enter to send."""
     input_box = driver.find_element(
         By.XPATH, '//div[@contenteditable="true"][@data-tab="10"]'
     )
@@ -188,7 +154,6 @@ def type_and_send_message(driver: webdriver.Chrome, message: str) -> None:
         if i > 0:
             input_box.send_keys(Keys.SHIFT + Keys.ENTER)
         input_box.send_keys(line)
-
     time.sleep(0.5)
     input_box.send_keys(Keys.ENTER)
     time.sleep(MSG_SEND_TIMEOUT)
@@ -197,24 +162,17 @@ def type_and_send_message(driver: webdriver.Chrome, message: str) -> None:
 def attach_and_send_file(
     driver: webdriver.Chrome, attachment: Path, caption: str
 ) -> None:
-    """
-    Click the paperclip → choose 'Document' → upload file → add caption → send.
-    Works for any file type (PDF, DOCX, TXT, images, etc.).
-    """
     abs_path = str(attachment.resolve())
-
     clip_btn = WebDriverWait(driver, 10).until(
         EC.element_to_be_clickable((By.XPATH, '//div[@title="Attach"]'))
     )
     clip_btn.click()
     time.sleep(1)
-
     doc_btn = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.XPATH, '//input[@accept="*"]'))
     )
     doc_btn.send_keys(abs_path)
     time.sleep(3)
-
     try:
         caption_box = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located(
@@ -225,7 +183,6 @@ def attach_and_send_file(
         time.sleep(0.5)
     except TimeoutException:
         logger.warning("Caption box not found — sending without caption.")
-
     send_btn = WebDriverWait(driver, 10).until(
         EC.element_to_be_clickable((By.XPATH, '//div[@aria-label="Send"]'))
     )
@@ -233,42 +190,27 @@ def attach_and_send_file(
     time.sleep(MSG_SEND_TIMEOUT)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Core sender
-# ══════════════════════════════════════════════════════════════════════════════
-
 def send_to_contact(
     driver: webdriver.Chrome,
     number: str,
     message: str,
     attachment: Optional[Path],
 ) -> bool:
-    """
-    Open the chat for `number` and send the message (+ attachment).
-    Returns True on success, False on any failure.
-    """
     try:
         if not open_chat(driver, number):
             return False
-
         if attachment and attachment.exists():
             logger.info("Attaching '%s' with caption for %s", attachment.name, number)
             attach_and_send_file(driver, attachment, message)
         else:
             logger.info("Sending text message to %s", number)
             type_and_send_message(driver, message)
-
         logger.info("✔ Sent to %s", number)
         return True
-
     except (NoSuchElementException, WebDriverException, TimeoutException) as exc:
         logger.error("✗ Failed to send to %s: %s", number, exc)
         return False
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Summary & report
-# ══════════════════════════════════════════════════════════════════════════════
 
 def print_summary(results: List[Dict]) -> None:
     table = Table(title="WhatsApp Send Summary", show_lines=True)
@@ -276,13 +218,10 @@ def print_summary(results: List[Dict]) -> None:
     table.add_column("Number", style="cyan")
     table.add_column("Message", style="white", max_width=40)
     table.add_column("Status", style="bold")
-
     for r in results:
         status = "[green]✓ Sent[/green]" if r["success"] else "[red]✗ Failed[/red]"
         table.add_row(str(r["line"]), r["number"], r["message"][:40], status)
-
     console.print(table)
-
     total = len(results)
     success = sum(1 for r in results if r["success"])
     rprint(
@@ -290,7 +229,6 @@ def print_summary(results: List[Dict]) -> None:
         f"[green]Sent: {success}[/green]  |  "
         f"[red]Failed: {total - success}[/red]\n"
     )
-
     report = LOG_DIR / "report.csv"
     with open(report, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=["line", "number", "message", "success"])
@@ -298,10 +236,6 @@ def print_summary(results: List[Dict]) -> None:
         writer.writerows(results)
     console.print(f"[dim]Report saved → {report}[/dim]")
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CLI entry point
-# ══════════════════════════════════════════════════════════════════════════════
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -372,7 +306,6 @@ def main() -> None:
                 attachment,
             )
             results.append({**contact, "success": success})
-
             if i < len(contacts) - 1:
                 logger.info("Waiting %d s before next contact …", args.delay)
                 time.sleep(args.delay)
