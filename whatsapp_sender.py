@@ -19,7 +19,6 @@ Usage:
 import argparse
 import csv
 import logging
-import os
 import sys
 import time
 from pathlib import Path
@@ -44,21 +43,21 @@ from selenium.common.exceptions import (
 from webdriver_manager.chrome import ChromeDriverManager
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
-BASE_DIR           = Path(__file__).parent
-LOG_DIR            = BASE_DIR / "logs"
-PROFILE_DIR        = BASE_DIR / ".chrome_profile"
-DEFAULT_MSG_FILE   = BASE_DIR / "numberMessage.txt"
+BASE_DIR = Path(__file__).parent
+LOG_DIR = BASE_DIR / "logs"
+PROFILE_DIR = BASE_DIR / ".chrome_profile"
+DEFAULT_MSG_FILE = BASE_DIR / "numberMessage.txt"
 DEFAULT_ATTACHMENT = BASE_DIR / "attachments" / "resume.txt"
 
 LOG_DIR.mkdir(exist_ok=True)
 PROFILE_DIR.mkdir(exist_ok=True)
 
 # ── Constants ──────────────────────────────────────────────────────────────────
-WHATSAPP_WEB_URL   = "https://web.whatsapp.com"
-PAGE_LOAD_TIMEOUT  = 60      # seconds to wait for WA Web to load
-CHAT_OPEN_TIMEOUT  = 20      # seconds to wait for a chat to be ready
-MSG_SEND_TIMEOUT   = 15      # seconds to wait after hitting Enter
-DELAY_BETWEEN_MSGS = 20      # default gap between contacts
+WHATSAPP_WEB_URL = "https://web.whatsapp.com"
+PAGE_LOAD_TIMEOUT = 60      # seconds to wait for WA Web to load
+CHAT_OPEN_TIMEOUT = 20      # seconds to wait for a chat to be ready
+MSG_SEND_TIMEOUT = 15       # seconds to wait after hitting Enter
+DELAY_BETWEEN_MSGS = 20     # default gap between contacts
 
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -93,7 +92,7 @@ def parse_contacts(filepath: Path) -> list[dict]:
                 logger.warning("Line %d skipped (missing message): %s", line_no, row)
                 continue
 
-            number  = row[0].strip()
+            number = row[0].strip()
             message = row[1].strip().strip('"')
 
             if not number.startswith("+"):
@@ -133,7 +132,7 @@ def build_driver(headless: bool = False) -> webdriver.Chrome:
         logger.warning("Headless mode: file attachments may not work on some systems.")
 
     service = Service(ChromeDriverManager().install())
-    driver  = webdriver.Chrome(service=service, options=opts)
+    driver = webdriver.Chrome(service=service, options=opts)
     driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
     return driver
 
@@ -288,10 +287,10 @@ def send_to_contact(
 
 def print_summary(results: list[dict]) -> None:
     table = Table(title="WhatsApp Send Summary", show_lines=True)
-    table.add_column("Line",    style="dim",   width=6)
-    table.add_column("Number",  style="cyan")
+    table.add_column("Line", style="dim", width=6)
+    table.add_column("Number", style="cyan")
     table.add_column("Message", style="white", max_width=40)
-    table.add_column("Status",  style="bold")
+    table.add_column("Status", style="bold")
 
     for r in results:
         status = "[green]✓ Sent[/green]" if r["success"] else "[red]✗ Failed[/red]"
@@ -299,7 +298,7 @@ def print_summary(results: list[dict]) -> None:
 
     console.print(table)
 
-    total   = len(results)
+    total = len(results)
     success = sum(1 for r in results if r["success"])
     rprint(
         f"\n[bold]Total:[/bold] {total}  |  "
@@ -406,3 +405,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+```
+
+Now the script should pass the flake8 checks with the given command.
