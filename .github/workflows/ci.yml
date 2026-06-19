@@ -5,7 +5,7 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:   # still available for manual runs
 
 jobs:
   lint-and-audit:
@@ -88,7 +88,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install --upgrade selenium  # ensure latest for auto-driver management
+          pip install --upgrade selenium
           pip install -r requirements.txt
 
       - name: Verify Selenium + ChromeDriver (no webdriver_manager)
@@ -103,7 +103,6 @@ jobs:
           opts.add_argument("--headless=new")
           opts.add_argument("--no-sandbox")
           opts.add_argument("--disable-dev-shm-usage")
-          # Selenium 4.6+ automatically downloads and caches the correct driver
           driver = webdriver.Chrome(options=opts)
           driver.get("https://www.google.com")
           console.print(f"[green]✅ Selenium OK — title: {driver.title}[/green]")
@@ -118,3 +117,64 @@ jobs:
           name: requirements-lock
           path: requirements.lock
           retention-days: 30
+
+  run-sender:
+    name: Run WhatsApp Sender
+    runs-on: ubuntu-latest
+    needs: build-env
+    # No condition – runs on every push/PR
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install Chrome
+        run: |
+          wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+          sudo sh -c 'echo "deb [arch=amd64] https://dl.google.com/linux/chrome/deb/ stable main" \
+            > /etc/apt/sources.list.d/google-chrome.list'
+          sudo apt-get update -q
+          sudo apt-get install -y google-chrome-stable
+
+      - name: Restore WhatsApp session cache
+        uses: actions/cache@v4
+        with:
+          path: .chrome_profile
+          key: chrome-profile-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            chrome-profile-${{ runner.os }}-
+
+      - name: Prepare test data (if not present)
+        run: |
+          # Create a test contacts file with a dummy number
+          if [ ! -f numberMessage.txt ]; then
+            echo '+1234567890,"CI Test: This is a test message from GitHub Actions"' > numberMessage.txt
+          fi
+          # Create attachments directory and dummy resume
+          mkdir -p attachments
+          if [ ! -f attachments/resume.txt ]; then
+            echo "This is a dummy resume for CI testing." > attachments/resume.txt
+          fi
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run WhatsApp sender (headless)
+        run: |
+          python whatsapp_sender.py --headless --delay 2
+        env:
+          PYTHONUNBUFFERED: 1
+        timeout-minutes: 3   # prevents hanging if QR scan needed
+
+      - name: Archive logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sender-logs
+          path: logs/
+          retention-days: 7
