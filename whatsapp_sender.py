@@ -153,7 +153,7 @@ def wait_for_login(driver: webdriver.Chrome) -> None:
 
     # Try to find the QR code canvas and wait for it to be visible
     try:
-        qr_canvas = WebDriverWait(driver, 15).until(
+        WebDriverWait(driver, 15).until(
             EC.visibility_of_element_located((By.XPATH, '//canvas[contains(@aria-label, "QR code")]'))
         )
         # Give it a moment to render fully
