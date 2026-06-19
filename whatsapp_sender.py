@@ -22,6 +22,7 @@ import logging
 import sys
 import time
 from pathlib import Path
+from typing import List, Dict, Optional
 
 from rich.console import Console
 from rich.table import Table
@@ -76,7 +77,7 @@ console = Console()
 # Contact parser
 # ══════════════════════════════════════════════════════════════════════════════
 
-def parse_contacts(filepath: Path) -> list[dict]:
+def parse_contacts(filepath: Path) -> List[Dict]:
     """
     Parse numberMessage.txt.
     Format:  +919702309081,"hello pankaj"
@@ -256,7 +257,7 @@ def send_to_contact(
     driver: webdriver.Chrome,
     number: str,
     message: str,
-    attachment: Path | None,
+    attachment: Optional[Path],
 ) -> bool:
     """
     Open the chat for `number` and send the message (+ attachment).
@@ -285,7 +286,7 @@ def send_to_contact(
 # Summary & report
 # ══════════════════════════════════════════════════════════════════════════════
 
-def print_summary(results: list[dict]) -> None:
+def print_summary(results: List[Dict]) -> None:
     table = Table(title="WhatsApp Send Summary", show_lines=True)
     table.add_column("Line", style="dim", width=6)
     table.add_column("Number", style="cyan")
@@ -357,7 +358,7 @@ def main() -> None:
         console.print("[red]✗ No valid contacts in file.[/red]")
         sys.exit(1)
 
-    attachment: Path | None = None
+    attachment: Optional[Path] = None
     if not args.no_attachment:
         attachment = args.attachment
         if not attachment.exists():
@@ -405,6 +406,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-```
-
-Now the script should pass the flake8 checks with the given command.
