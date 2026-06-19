@@ -138,7 +138,7 @@ def wait_for_login(driver: webdriver.Chrome) -> None:
     Block until the user is fully logged in to WhatsApp Web.
     On first run this means scanning the QR code; on subsequent runs
     the session cookie re-authenticates automatically.
-    If not logged in, captures a screenshot of the QR code for scanning.
+    If QR is visible, saves screenshot and exits with code 2 (QR needed).
     """
     console.print("\n[yellow]⏳  Waiting for WhatsApp Web to load …[/yellow]")
     console.print("[dim]   (Scan the QR code if this is your first run)[/dim]\n")
@@ -151,10 +151,12 @@ def wait_for_login(driver: webdriver.Chrome) -> None:
         qr_file = "qr_code.png"
         driver.save_screenshot(qr_file)
         console.print(f"[yellow]📸 QR code screenshot saved as {qr_file}[/yellow]")
-        console.print("[dim]   Download this artifact, scan it with your WhatsApp app, then wait.[/dim]\n")
+        console.print("[dim]   Download this artifact, scan it with your WhatsApp app, then re-run the job.[/dim]\n")
+        # Exit with a specific code to indicate QR needed
+        sys.exit(2)
 
-    # Wait for successful login (up to 5 minutes)
-    wait = WebDriverWait(driver, 300)   # 5 minutes to scan
+    # Wait for login (should be quick if session exists)
+    wait = WebDriverWait(driver, 60)
     wait.until(
         EC.presence_of_element_located(
             (By.XPATH, '//div[@contenteditable="true"][@data-tab="3"]')
